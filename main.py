@@ -1,11 +1,14 @@
-import openai
+# import openai
+from openai import OpenAI
 import faiss
 import numpy as np
 import os
 from dotenv import load_dotenv
-# OpenAI APIキーの設定
 load_dotenv()
-openai.api_key = os.environ['OPENAI_API_KEY']
+# openai.api_key = os.environ['OPENAI_API_KEY']
+client = OpenAI(
+  api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
+)
 
 # サークル情報のファイルを読み込む
 def load_circle_info(file_path):
@@ -13,13 +16,27 @@ def load_circle_info(file_path):
         lines = f.readlines()
     return [line.strip() for line in lines]
 
+# GPT APIを使ってテキストをベクトル化
 def get_embedding(text):
-    response = openai.embeddings.create(
-        input=text,
+    response = client.embeddings.create(
+        input=[text],
         model="text-embedding-ada-002"  # 埋め込みモデルの指定
     )
     return response.data[0].embedding
-    # return response['data'][0]['embedding']
+
+# GPT APIを使って自然な応答を生成
+def generate_response(circle_info, question):
+    prompt = f"ユーザーの質問: '{question}' に基づいて、以下のサークル情報を参考にして人間らしい返答を作成してください: '{circle_info}'"
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",  # 使用するGPTモデルを指定
+        messages=[
+            {"role": "system", "content": "あなたはサークルの情報について回答するAIです。"},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=150  # 必要に応じてトークン数を調整
+    )
+    # return response.choices[0].message['content'].strip()
+    return response.choices[0].message.content
 
 # サークル情報をベクトル化してFaissに保存
 def store_in_faiss(circle_info):
@@ -55,19 +72,23 @@ def search_faiss(index, question, circle_info):
 def main():
     # サークル情報をテキストファイルから読み込む
     circle_info = load_circle_info('circles.txt')
-
+    print(f"サークル情報: {circle_info}")
+    
     # サークル情報をベクトル化してFaissに保存
     index = store_in_faiss(circle_info)
 
     # ユーザーからの質問
-    question = "サークルのメンバーは何人ですか？"
+    question = "サークルの創設者と代表を教えて"
 
     # 質問に対して最も関連性の高いサークル情報を検索
-    result, distance = search_faiss(index, question, circle_info)
+    closest_info, distance = search_faiss(index, question, circle_info)
     
-    # 検索結果を表示
+    # ChatGPTを使って人間らしい文章を生成
+    response = generate_response(closest_info, question)
+    
+    # 検索結果と生成された文章を表示
     print(f"質問: {question}")
-    print(f"関連するサークル情報: {result} (距離: {distance})")
+    print(f"生成された応答: {response} (距離: {distance})")
 
 # 実行
 if __name__ == "__main__":
