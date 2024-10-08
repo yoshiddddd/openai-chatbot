@@ -5,15 +5,26 @@ import faiss
 from dotenv import load_dotenv
 from openai import OpenAI
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import json
 from pydantic import BaseModel
 # .envファイルからAPIキーをロード
 load_dotenv()
+
+# # CORSの設定
+
 # openai.api_key = os.environ['OPENAI_API_KEY']
 client = OpenAI(
   api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
 )
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 必要に応じて特定のオリジンに制限可能
+    allow_credentials=True,
+    allow_methods=["*"],  # POST や GET メソッドを許可
+    allow_headers=["*"],  # 全てのヘッダーを許可
+)
 # CSVファイルからサークル情報を読み込む関数
 def load_circle_info(file_path):
     circle_data = []
@@ -155,19 +166,19 @@ async def chat_with_ai(request: ChatRequest):
         circle_data = load_circle_info('test.csv')  # CSVファイル
         # circle_data = load_circle_info_json('test.json')  # JSONファイル
 
-        available_fields = list(circle_data[0].keys())
+        # available_fields = list(circle_data[0].keys())
         question = request.message
 
         # kを動的に決定 (例: 3つの関連するフィールドを取得)
-        k = 3
-        closest_fields = find_closest_fields(question, available_fields, k=k)
+        # k = 3
+        # closest_fields = find_closest_fields(question, available_fields, k=k)
 
-        # 必要な情報をCSVから取得
-        circle_info = {field: circle_data[0][field] for field in closest_fields}
+        # # 必要な情報をCSVから取得
+        # circle_info = {field: circle_data[0][field] for field in closest_fields}
 
         # ChatGPTを使って応答を生成
-        response = generate_response(circle_info, question)
-
+        response = generate_response(circle_data, question)
+        # print(response)
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {e}")
